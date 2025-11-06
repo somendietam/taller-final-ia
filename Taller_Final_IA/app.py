@@ -192,16 +192,7 @@ if st.session_state.ocr_text:
                     client_hf = InferenceClient(token=HUGGINGFACE_API_KEY)
                     
                     # Adaptamos la tarea a los 'pipelines' de la API de Inferencia
-                    if "Resumir" in task:
-                        # --- INICIA LA CORRECCIÓN ---
-                        response = client_hf.summarization(
-                            st.session_state.ocr_text,
-                            max_length=max_tokens # Argumento directo, no un dict
-                        )
-                        response_text = response.summary_text
-                        # --- TERMINA LA CORRECCIÓN ---
-                    
-                    elif "Traducir" in task:
+                    if "Traducir" in task:
                         response = client_hf.translation(
                             st.session_state.ocr_text, 
                             model="Helsinki-NLP/opus-mt-es-en"
@@ -213,13 +204,12 @@ if st.session_state.ocr_text:
                         response_text = f"Sentimiento Detectado: {response[0]['label']} (Confianza: {response[0]['score']:.2%})"
                     
                     else:
-                        # Usamos un modelo de generación de texto para tareas más abiertas
                         prompt = f"Tarea: {task}\n\nTexto: {st.session_state.ocr_text}\n\nRespuesta:"
                         response = client_hf.text_generation(
                             prompt, 
                             model="mistralai/Mixtral-8x7B-Instruct-v0.1",
                             max_new_tokens=max_tokens,
-                            temperature=temperature if temperature > 0.0 else 0.1
+                            temperature=temperature if temperature > 0.0 else 0.1 # temp 0 da error en HF
                         )
                         response_text = response
 
@@ -227,10 +217,11 @@ if st.session_state.ocr_text:
                     st.markdown(response_text)
 
                 except Exception as e:
-                    st.error(f"Error al contactar la API de Hugging Face: {e}")   
+                    st.error(f"Error al contactar la API de Hugging Face: {e}")  
 
 else:
     st.warning("Por favor, sube una imagen para activar el análisis con LLM.")
+
 
 
 
