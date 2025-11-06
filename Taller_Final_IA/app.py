@@ -192,6 +192,7 @@ if st.session_state.ocr_text:
                     client_hf = InferenceClient(token=HUGGINGFACE_API_KEY)
                     
                     # Adaptamos la tarea a los 'pipelines' de la API de Inferencia
+                    
                     if "Traducir" in task:
                         response = client_hf.translation(
                             st.session_state.ocr_text, 
@@ -204,23 +205,34 @@ if st.session_state.ocr_text:
                         response_text = f"Sentimiento Detectado: {response[0]['label']} (Confianza: {response[0]['score']:.2%})"
                     
                     else:
-                        prompt = f"Tarea: {task}\n\nTexto: {st.session_state.ocr_text}\n\nRespuesta:"
-                        response = client_hf.text_generation(
-                            prompt, 
+                        # Este bloque manejará "Resumir" y las otras tareas
+                        # Construimos el prompt en formato de lista de mensajes
+                        messages = [
+                            {
+                                "role": "user",
+                                "content": f"Tu tarea es la siguiente: {task}. El texto que debes analizar es el siguiente:\n\n{st.session_state.ocr_text}"
+                            }
+                        ]
+                        
+                        # Usamos el método .conversational()
+                        response_dict = client_hf.conversational(
+                            messages,
                             model="mistralai/Mixtral-8x7B-Instruct-v0.1",
                             max_new_tokens=max_tokens,
-                            temperature=temperature if temperature > 0.0 else 0.1 # temp 0 da error en HF
+                            temperature=temperature if temperature > 0.0 else 0.1
                         )
-                        response_text = response
+                        # La respuesta viene en un diccionario
+                        response_text = response_dict['generated_text']
 
                     st.markdown("### Respuesta de Hugging Face:")
                     st.markdown(response_text)
 
                 except Exception as e:
-                    st.error(f"Error al contactar la API de Hugging Face: {e}")  
+                    st.error(f"Error al contactar la API de Hugging Face: {e}")
 
 else:
     st.warning("Por favor, sube una imagen para activar el análisis con LLM.")
+
 
 
 
