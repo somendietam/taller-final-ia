@@ -57,7 +57,7 @@ if uploaded_file is not None:
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     
     st.divider()
-    st.header("Módulos 2 y 3: Análisis con LLMs 🧠")
+    st.header("Módulos 2 y 3: Análisis con LLMs")
     
     text_to_analyze = st.session_state['extracted_text']
 
@@ -166,3 +166,4 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
+
