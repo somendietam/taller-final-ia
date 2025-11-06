@@ -92,12 +92,16 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             model_selection = "llama-3.1-8b-instant"
             
         else:
+            # --- CAMBIO DE MODELO ---
+            # Cambiamos Mixtral por Mistral-7B-Instruct
+            # Este modelo SÍ soporta 'text_generation'
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                "mistralai/Mistral-7B-Instruct-v0.2",
                 key="hf_model",
-                help="Este modelo debe ser de 'instrucción' y soportar la tarea 'text_generation'."
+                help="Este modelo debe soportar la tarea 'text_generation'."
             )
+            # --- FIN DEL CAMBIO ---
 
     with col2:
         temperature = st.slider(
@@ -120,7 +124,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
 
-    # --- Lógica de la API ---
+    # --- Lógica de la API (con text_generation para HF) ---
     
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
@@ -151,12 +155,10 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                     st.markdown(response_content)
 
                 elif provider == "Hugging Face":
-                    # --- CORRECCIÓN FINAL: Volvemos a text_generation ---
-                    # El error "not a chat model" confirma que chat_completion es incorrecto.
-                    # Usamos 'text_generation' para este modelo "instruct".
+                    # Usamos 'text_generation' (confirmado por el cambio de modelo)
                     client = InferenceClient(token=HUGGINGFACE_API_KEY)
                     
-                    # Formateamos el prompt usando las etiquetas de Mixtral
+                    # Formato de prompt para Mistral-7B-Instruct (similar a Mixtral)
                     hf_prompt = f"""[INST] Eres un asistente experto. El usuario te dará un texto y una tarea.
 Tarea: {task_prompt}
 
@@ -169,16 +171,14 @@ Texto para analizar:
                     
                     # Llamada a la API con .text_generation()
                     response_content = client.text_generation(
-                        model=model_selection,
+                        model=model_selection, # Usará "mistralai/Mistral-7B-Instruct-v0.2"
                         prompt=hf_prompt,
                         max_new_tokens=max_tokens, 
-                        temperature=max(temperature, 0.01) # Temp 0.0 puede fallar
+                        temperature=max(temperature, 0.01)
                     )
                     
-                    # .text_generation() devuelve una cadena de texto directamente
                     st.markdown("### Respuesta de Hugging Face")
                     st.markdown(response_content)
-                    # --- FIN DE LA CORRECCIÓN FINAL ---
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
