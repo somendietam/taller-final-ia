@@ -75,7 +75,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         else:
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "tiiuae/falcon-7b-instruct",  # ✅ modelo público y compatible
+                "google/gemma-2b-it",  # ✅ modelo público y compatible
                 key="hf_model"
             )
 
@@ -147,3 +147,4 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
             except Exception as e:
                 st.error(f"🚨 Error inesperado: {e}")
+
