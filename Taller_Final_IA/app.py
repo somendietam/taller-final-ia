@@ -1,8 +1,6 @@
 import streamlit as st
 from PIL import Image
 import easyocr
-import os
-import numpy as np
 from groq import Groq
 from huggingface_hub import InferenceClient
 
@@ -23,7 +21,7 @@ except KeyError:
 @st.cache_resource
 def load_ocr_model():
     """Carga el modelo EasyOCR en memoria (cacheado)."""
-    reader = easyocr.Reader(['es', 'en'], gpu=False) 
+    reader = easyocr.Reader(['es', 'en'], gpu=False)
     return reader
 
 st.title("Taller IA: Construcción de una Aplicación Multimodal")
@@ -37,15 +35,15 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Imagen subida", use_column_width=True)
-    
+
     img_bytes = uploaded_file.getvalue()
-    
+
     with st.spinner("Procesando imagen con OCR..."):
         reader = load_ocr_model()
         results = reader.readtext(img_bytes)
         extracted_text = " ".join([res[1] for res in results])
         st.session_state['extracted_text'] = extracted_text
-        
+
         st.text_area(
             "Texto Extraído por OCR:",
             extracted_text,
@@ -56,16 +54,16 @@ if uploaded_file is not None:
 # --- MÓDULOS 2 y 3: CONEXIÓN CON LLMS Y FLEXIBILIDAD ---
 
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
-    
+
     st.divider()
     st.header("Módulos 2 y 3: Análisis con LLMs 🧠")
-    
+
     text_to_analyze = st.session_state['extracted_text']
 
     # --- Interfaz de Usuario (UI) ---
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         provider = st.radio(
             "Elige el proveedor de LLM:",
@@ -84,15 +82,15 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             ),
             key="task"
         )
-        
+
         if provider == "GROQ":
             st.info("Usando el modelo: `llama-3.1-8b-instant`")
             model_selection = "llama-3.1-8b-instant"
-            
+
         else:
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "mistralai/Mistral-7B-Instruct-v0.2", # Este modelo exige la tarea 'conversational'
+                "mistralai/Mistral-7B-Instruct-v0.2",
                 key="hf_model"
             )
 
@@ -105,7 +103,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             step=0.1,
             key="temperature"
         )
-        
+
         max_tokens = st.slider(
             "Máximos Tokens (Longitud)",
             min_value=50,
@@ -118,15 +116,16 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
 
     # --- Lógica de la API ---
-    
+
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
             try:
+                # --- GROQ ---
                 if provider == "GROQ":
                     client = Groq(api_key=GROQ_API_KEY)
                     messages = [
-                        { "role": "system", "content": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}." },
-                        { "role": "user", "content": f"El texto para analizar es:\n\n---\n{text_to_analyze}\n---" }
+                        {"role": "system", "content": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}."},
+                        {"role": "user", "content": f"El texto para analizar es:\n\n---\n{text_to_analyze}\n---"}
                     ]
                     chat_completion = client.chat.completions.create(
                         messages=messages, model=model_selection,
@@ -136,39 +135,28 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                     st.markdown("### Respuesta de GROQ")
                     st.markdown(response_content)
 
+                # --- HUGGING FACE ---
                 elif provider == "Hugging Face":
-                    # --- CORRECCIÓN FINAL: Usamos .conversational() ---
-                    # El error de la API nos obliga a usar esta tarea.
-                    # Nos aseguramos que requirements.txt tenga huggingface_hub>=0.20.0
-                    client = InferenceClient(token=HUGGINGFACE_API_KEY)
-                    
-                    # Para la tarea 'conversational', el prompt es solo el texto del usuario
-                    hf_prompt = f"""[INST] Eres un asistente experto. El usuario te dará un texto y una tarea.
-Tarea: {task_prompt}
+                    client = InferenceClient(model=model_selection, token=HUGGINGFACE_API_KEY)
+
+                    hf_prompt = f"""Eres un asistente experto. 
+Realiza la siguiente tarea: {task_prompt}
 
 Texto para analizar:
 ---
 {text_to_analyze}
 ---
-[/INST]
 """
-                    
-                    # Llamada a la API con .conversational()
-                    response_dict = client.conversational(
-                        text=hf_prompt,
-                        model=model_selection,
-                        parameters={
-                            "max_new_tokens": max_tokens,
-                            "temperature": max(temperature, 0.01)
-                        }
+
+                    response = client.text_generation(
+                        hf_prompt,
+                        max_new_tokens=max_tokens,
+                        temperature=max(temperature, 0.01),
+                        do_sample=True
                     )
-                    
-                    # La respuesta es un diccionario, extraemos la respuesta generada
-                    response_content = response_dict.get("generated_text", "No se recibió respuesta.")
-                    
+
                     st.markdown("### Respuesta de Hugging Face")
-                    st.markdown(response_content)
-                    # --- FIN DE LA CORRECCIÓN ---
+                    st.markdown(response)
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
