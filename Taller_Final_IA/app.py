@@ -3,7 +3,6 @@ from PIL import Image
 import easyocr
 from groq import Groq
 from huggingface_hub import InferenceClient
-import requests
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Taller IA: OCR + LLM", layout="wide")
@@ -44,7 +43,7 @@ if uploaded_file is not None:
 
         st.text_area("Texto extraído por OCR:", extracted_text, height=250, key="ocr_output")
 
-# --- MÓDULO 2 Y 3: LLMs (GROQ Y HUGGING FACE) ---
+# --- MÓDULOS 2 Y 3: LLMs (GROQ Y HUGGING FACE) ---
 
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     st.divider()
@@ -75,13 +74,13 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         else:
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "google/gemma-2b-it",  # ✅ modelo público y compatible
+                "gpt2",  # ✅ modelo gratuito y funcional
                 key="hf_model"
             )
 
     with col2:
         temperature = st.slider("Temperatura (creatividad)", 0.0, 1.0, 0.7, 0.1)
-        max_tokens = st.slider("Máximos tokens (longitud)", 50, 2048, 512, 64)
+        max_tokens = st.slider("Máximos tokens (longitud)", 50, 1024, 200, 50)
 
     # --- BOTÓN DE EJECUCIÓN ---
     if st.button("🚀 Analizar Texto con LLM", type="primary"):
@@ -104,47 +103,32 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
                     response = chat_completion.choices[0].message.content
                     st.success("✅ Análisis completado con GROQ")
-                    st.markdown("### 🧩 Respuesta de GROQ")
+                    st.markdown("### 🧠 Respuesta de GROQ")
                     st.markdown(response)
 
                 # --- HUGGING FACE ---
                 else:
-                    api_url = f"https://router.huggingface.co/hf-inference/models/{model_selection}"
-                    headers = {
-                        "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-                        "Content-Type": "application/json",
-                    }
+                    client = InferenceClient(model=model_selection, token=HUGGINGFACE_API_KEY)
 
-                    hf_payload = {
-                        "inputs": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}.\n\nTexto para analizar:\n{text_to_analyze}",
-                        "parameters": {
-                            "max_new_tokens": max_tokens,
-                            "temperature": max(temperature, 0.01),
-                        },
-                    }
+                    hf_prompt = f"""Eres un asistente experto.
+Realiza la siguiente tarea: {task_prompt}
 
-                    response = requests.post(api_url, headers=headers, json=hf_payload)
+Texto para analizar:
+---
+{text_to_analyze}
+---
+"""
 
-                    if response.status_code == 200:
-                        data = response.json()
-                        if isinstance(data, list):
-                            output = data[0].get("generated_text", "No se recibió texto.")
-                        elif isinstance(data, dict):
-                            output = data.get("generated_text", "No se recibió texto.")
-                        else:
-                            output = str(data)
+                    response = client.text_generation(
+                        hf_prompt,
+                        max_new_tokens=max_tokens,
+                        temperature=max(temperature, 0.01),
+                        do_sample=True
+                    )
 
-                        st.success("✅ Análisis completado con Hugging Face")
-                        st.markdown("### 🤖 Respuesta de Hugging Face")
-                        st.markdown(output)
-
-                    elif response.status_code == 404:
-                        st.error("❌ Modelo no encontrado. Prueba con otro modelo público como `facebook/opt-1.3b` o `google/gemma-2b-it`.")
-                    elif response.status_code == 401:
-                        st.error("🔒 Error de autenticación. Verifica tu token de Hugging Face.")
-                    else:
-                        st.error(f"⚠️ Error de Hugging Face API: {response.status_code}\n\n{response.text}")
+                    st.success("✅ Análisis completado con Hugging Face")
+                    st.markdown("### 🤖 Respuesta de Hugging Face")
+                    st.markdown(response)
 
             except Exception as e:
-                st.error(f"🚨 Error inesperado: {e}")
-
+                st.error(f"🚨 Error al contactar la API de {provider}: {e}")
