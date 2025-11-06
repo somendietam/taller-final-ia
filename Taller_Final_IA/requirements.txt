@@ -1,5 +1,7 @@
 streamlit
-python-dotenv
 easyocr
 groq
 huggingface_hub
+Pillow
+numpy
+python-dotenv
