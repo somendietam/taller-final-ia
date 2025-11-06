@@ -90,9 +90,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             model_selection = "llama-3.1-8b-instant"
         else:
             st.info("Usando endpoints de tareas específicas de Hugging Face.")
-            # No necesitamos un input de modelo, ya que usaremos modelos
-            # estándar para cada tarea específica.
-            model_selection = None # Lo definiremos en la lógica
+            model_selection = None
 
     with col2:
         temperature = st.slider(
@@ -104,7 +102,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         max_tokens = st.slider(
             "Máximos Tokens (Longitud)", 50, 4096, 512, 64,
             key="max_tokens",
-            help="Nota: En Hugging Face, esto aplica a la tarea de Resumen."
+            help="Nota: Este slider solo aplica para GROQ." # Actualizado el texto de ayuda
         )
 
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
@@ -114,6 +112,8 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
             try:
+                response_content = "" # Inicializar la variable
+                
                 if provider == "GROQ":
                     client = Groq(api_key=GROQ_API_KEY)
                     messages = [
@@ -127,22 +127,19 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                     response_content = chat_completion.choices[0].message.content
 
                 elif provider == "Hugging Face":
-                    # --- CORRECCIÓN DEFINITIVA: USAR TAREAS ESPECÍFICAS ---
-                    # Esto sigue la pista del profesor (ej. summarization)
                     client = InferenceClient(token=HUGGINGFACE_API_KEY)
-                    response_content = None
 
                     if "Resumir" in task_prompt:
-                        # 1. Tarea de Resumen
+                        # --- CORRECCIÓN ---
+                        # Eliminado el parámetro 'max_length'
                         response_list = client.summarization(
                             text=text_to_analyze,
-                            model="facebook/bart-large-cnn",
-                            max_length=max_tokens
+                            model="facebook/bart-large-cnn"
                         )
+                        # --- FIN DE LA CORRECCIÓN ---
                         response_content = response_list[0]['summary_text']
                     
                     elif "Traducir" in task_prompt:
-                        # 2. Tarea de Traducción (Español a Inglés)
                         response_list = client.translation(
                             text=text_to_analyze,
                             model="Helsinki-NLP/opus-mt-es-en"
@@ -150,17 +147,14 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                         response_content = response_list[0]['translation_text']
 
                     elif "sentimiento" in task_prompt:
-                        # 3. Tarea de Análisis de Sentimiento
                         response_list = client.sentiment_analysis(
                             text=text_to_analyze,
                             model="cardiffnlp/twitter-xlm-roberta-base-sentiment"
                         )
-                        # Buscamos la etiqueta con el score más alto
                         best_sentiment = max(response_list[0], key=lambda x: x['score'])
                         response_content = f"Sentimiento Detectado: **{best_sentiment['label']}** (Confianza: {best_sentiment['score']:.2f})"
                     
                     else:
-                        # 4. Tareas no soportadas por endpoints simples
                         st.error(f"La tarea '{task_prompt}' no tiene un endpoint de tarea simple en Hugging Face. \n\nPor favor, prueba 'Resumir', 'Traducir al inglés' o 'Analizar sentimiento' para el proveedor Hugging Face.")
                         st.stop()
                 
