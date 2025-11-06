@@ -193,11 +193,13 @@ if st.session_state.ocr_text:
                     
                     # Adaptamos la tarea a los 'pipelines' de la API de Inferencia
                     if "Resumir" in task:
+                        # --- INICIA LA CORRECCIÓN ---
                         response = client_hf.summarization(
                             st.session_state.ocr_text,
-                            parameters={"max_length": max_tokens}
+                            max_length=max_tokens # Argumento directo, no un dict
                         )
                         response_text = response.summary_text
+                        # --- TERMINA LA CORRECCIÓN ---
                     
                     elif "Traducir" in task:
                         response = client_hf.translation(
@@ -217,7 +219,7 @@ if st.session_state.ocr_text:
                             prompt, 
                             model="mistralai/Mixtral-8x7B-Instruct-v0.1",
                             max_new_tokens=max_tokens,
-                            temperature=temperature if temperature > 0.0 else 0.1 # temp 0 da error en HF
+                            temperature=temperature if temperature > 0.0 else 0.1
                         )
                         response_text = response
 
@@ -225,9 +227,10 @@ if st.session_state.ocr_text:
                     st.markdown(response_text)
 
                 except Exception as e:
-                    st.error(f"Error al contactar la API de Hugging Face: {e}")
+                    st.error(f"Error al contactar la API de Hugging Face: {e}")   
 
 else:
     st.warning("Por favor, sube una imagen para activar el análisis con LLM.")
+
 
 
