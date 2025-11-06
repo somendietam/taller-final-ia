@@ -26,7 +26,7 @@ def load_ocr_model():
     return reader
 
 st.title("Taller IA: Construcción de una Aplicación Multimodal")
-st.header("Módulo 1: Lector de Imágenes (OCR) 📸")
+st.header("Módulo 1: Lector de Imágenes (OCR)")
 
 uploaded_file = st.file_uploader(
     "Sube una imagen para extraer el texto",
@@ -166,4 +166,5 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
+
 
