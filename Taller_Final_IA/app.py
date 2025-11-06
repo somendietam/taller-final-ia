@@ -8,10 +8,24 @@ from dotenv import load_dotenv
 
 # --- 1. CONFIGURACIÓN Y CARGA DE MODELOS ---
 
-# Cargar las claves de API desde el archivo .env
+# Cargar claves de API (para desarrollo local desde .env)
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+
+# Intentar cargar desde Streamlit Secrets (para producción)
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+    HUGGINGFACE_API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
+    print("Claves cargadas desde Streamlit Secrets (Producción).")
+except KeyError:
+    # Si falla, cargar desde .env (para desarrollo local)
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+    print("Claves cargadas desde .env (Local).")
+
+# Comprobación final
+if not GROQ_API_KEY or not HUGGINGFACE_API_KEY:
+    st.error("Claves de API no encontradas. Asegúrate de configurar tus secretos en Streamlit Cloud.")
+    st.stop()
 
 # (Módulo 1 - Desafío) Cargar el modelo OCR usando el caché de Streamlit
 # Esto asegura que el modelo (que es pesado) se cargue solo una vez.
@@ -200,4 +214,5 @@ if st.session_state.ocr_text:
                     st.error(f"Error al contactar la API de Hugging Face: {e}")
 
 else:
+
     st.warning("Por favor, sube una imagen para activar el análisis con LLM.")
