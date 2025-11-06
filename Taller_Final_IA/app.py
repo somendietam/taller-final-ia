@@ -5,19 +5,18 @@ from groq import Groq
 from huggingface_hub import InferenceClient
 import requests
 
-# --- CONFIGURACIÓN DE LA PÁGINA Y CLAVES ---
-
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Taller IA: OCR + LLM", layout="wide")
 
-# Cargar las claves de API desde los secretos de Streamlit
+# --- CARGA DE CLAVES DE API ---
 try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     HUGGINGFACE_API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
 except KeyError:
-    st.error("No se encontraron las claves de API en los secretos de Streamlit. Asegúrate de haberlas configurado.")
+    st.error("⚠️ No se encontraron las claves de API en los secretos de Streamlit.")
     st.stop()
 
-# --- MÓDULO 1: EL LECTOR DE IMÁGENES (OCR) ---
+# --- MÓDULO 1: OCR (LECTOR DE IMÁGENES) ---
 
 @st.cache_resource
 def load_ocr_model():
@@ -25,7 +24,7 @@ def load_ocr_model():
     reader = easyocr.Reader(['es', 'en'], gpu=False)
     return reader
 
-st.title("Taller IA: Construcción de una Aplicación Multimodal")
+st.title("🧠 Taller IA: Construcción de una Aplicación Multimodal")
 st.header("Módulo 1: Lector de Imágenes (OCR) 📸")
 
 uploaded_file = st.file_uploader(
@@ -35,42 +34,29 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
-    st.image(image, caption="Imagen subida", use_column_width=True)
-
-    img_bytes = uploaded_file.getvalue()
+    st.image(image, caption="📷 Imagen subida", use_column_width=True)
 
     with st.spinner("Procesando imagen con OCR..."):
         reader = load_ocr_model()
-        results = reader.readtext(img_bytes)
+        results = reader.readtext(uploaded_file.getvalue())
         extracted_text = " ".join([res[1] for res in results])
         st.session_state['extracted_text'] = extracted_text
 
-        st.text_area(
-            "Texto Extraído por OCR:",
-            extracted_text,
-            height=250,
-            key="ocr_output"
-        )
+        st.text_area("Texto extraído por OCR:", extracted_text, height=250, key="ocr_output")
 
-# --- MÓDULOS 2 y 3: CONEXIÓN CON LLMS Y FLEXIBILIDAD ---
+# --- MÓDULO 2 Y 3: LLMs (GROQ Y HUGGING FACE) ---
 
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
-
     st.divider()
-    st.header("Módulos 2 y 3: Análisis con LLMs 🧠")
+    st.header("Módulos 2 y 3: Análisis con Modelos de Lenguaje 🧩")
 
     text_to_analyze = st.session_state['extracted_text']
 
-    # --- Interfaz de Usuario (UI) ---
-
     col1, col2 = st.columns(2)
 
+    # --- OPCIONES DE ANÁLISIS ---
     with col1:
-        provider = st.radio(
-            "Elige el proveedor de LLM:",
-            ("GROQ", "Hugging Face"),
-            key="provider"
-        )
+        provider = st.radio("Elige el proveedor de LLM:", ("GROQ", "Hugging Face"))
 
         task_prompt = st.selectbox(
             "Elige la tarea a realizar:",
@@ -81,80 +67,60 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                 "Analizar el sentimiento del texto (positivo, negativo o neutral)",
                 "Generar 3 preguntas sobre el texto"
             ),
-            key="task"
         )
 
         if provider == "GROQ":
-            st.info("Usando el modelo: `llama-3.1-8b-instant`")
+            st.info("Usando modelo GROQ: `llama-3.1-8b-instant`")
             model_selection = "llama-3.1-8b-instant"
-
         else:
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "mistralai/Mixtral-8x7B-Instruct-v0.1",  # ✅ modelo compatible con hf-inference
+                "tiiuae/falcon-7b-instruct",  # ✅ modelo público y compatible
                 key="hf_model"
             )
 
     with col2:
-        temperature = st.slider(
-            "Temperatura (Creatividad)",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.7,
-            step=0.1,
-            key="temperature"
-        )
+        temperature = st.slider("Temperatura (creatividad)", 0.0, 1.0, 0.7, 0.1)
+        max_tokens = st.slider("Máximos tokens (longitud)", 50, 2048, 512, 64)
 
-        max_tokens = st.slider(
-            "Máximos Tokens (Longitud)",
-            min_value=50,
-            max_value=2048,
-            value=512,
-            step=64,
-            key="max_tokens"
-        )
-
-    analyze_button = st.button("Analizar Texto con LLM", type="primary")
-
-    # --- Lógica de la API ---
-
-    if analyze_button:
-        with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
+    # --- BOTÓN DE EJECUCIÓN ---
+    if st.button("🚀 Analizar Texto con LLM", type="primary"):
+        with st.spinner(f"Analizando texto con {provider}..."):
             try:
                 # --- GROQ ---
                 if provider == "GROQ":
                     client = Groq(api_key=GROQ_API_KEY)
                     messages = [
                         {"role": "system", "content": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}."},
-                        {"role": "user", "content": f"El texto para analizar es:\n\n---\n{text_to_analyze}\n---"}
+                        {"role": "user", "content": f"Texto a analizar:\n\n{text_to_analyze}"}
                     ]
+
                     chat_completion = client.chat.completions.create(
-                        messages=messages, model=model_selection,
-                        temperature=temperature, max_tokens=max_tokens
+                        messages=messages,
+                        model=model_selection,
+                        temperature=temperature,
+                        max_tokens=max_tokens
                     )
-                    response_content = chat_completion.choices[0].message.content
-                    st.markdown("### Respuesta de GROQ")
-                    st.markdown(response_content)
+
+                    response = chat_completion.choices[0].message.content
+                    st.success("✅ Análisis completado con GROQ")
+                    st.markdown("### 🧩 Respuesta de GROQ")
+                    st.markdown(response)
 
                 # --- HUGGING FACE ---
-                elif provider == "Hugging Face":
+                else:
                     api_url = f"https://router.huggingface.co/hf-inference/models/{model_selection}"
                     headers = {
                         "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
                     }
 
                     hf_payload = {
-                        "inputs": f"""Eres un asistente experto. Realiza esta tarea: {task_prompt}.
-
-Texto para analizar:
----
-{text_to_analyze}
----""",
+                        "inputs": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}.\n\nTexto para analizar:\n{text_to_analyze}",
                         "parameters": {
                             "max_new_tokens": max_tokens,
-                            "temperature": max(temperature, 0.01)
-                        }
+                            "temperature": max(temperature, 0.01),
+                        },
                     }
 
                     response = requests.post(api_url, headers=headers, json=hf_payload)
@@ -162,16 +128,22 @@ Texto para analizar:
                     if response.status_code == 200:
                         data = response.json()
                         if isinstance(data, list):
-                            response_text = data[0].get("generated_text", "No se recibió texto.")
+                            output = data[0].get("generated_text", "No se recibió texto.")
                         elif isinstance(data, dict):
-                            response_text = data.get("generated_text", "No se recibió texto.")
+                            output = data.get("generated_text", "No se recibió texto.")
                         else:
-                            response_text = str(data)
+                            output = str(data)
 
-                        st.markdown("### Respuesta de Hugging Face")
-                        st.markdown(response_text)
+                        st.success("✅ Análisis completado con Hugging Face")
+                        st.markdown("### 🤖 Respuesta de Hugging Face")
+                        st.markdown(output)
+
+                    elif response.status_code == 404:
+                        st.error("❌ Modelo no encontrado. Prueba con otro modelo público como `facebook/opt-1.3b` o `google/gemma-2b-it`.")
+                    elif response.status_code == 401:
+                        st.error("🔒 Error de autenticación. Verifica tu token de Hugging Face.")
                     else:
-                        st.error(f"Error de Hugging Face API: {response.status_code} - {response.text}")
+                        st.error(f"⚠️ Error de Hugging Face API: {response.status_code}\n\n{response.text}")
 
             except Exception as e:
-                st.error(f"Error al contactar la API de {provider}: {e}")
+                st.error(f"🚨 Error inesperado: {e}")
