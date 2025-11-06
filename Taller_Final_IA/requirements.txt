@@ -1,7 +1,7 @@
 streamlit
 easyocr
 groq
-huggingface_hub>=0.20.0
+huggingface_hub≥ 0.23.0
 Pillow
 numpy
 python-dotenv
