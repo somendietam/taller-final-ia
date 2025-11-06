@@ -102,7 +102,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         max_tokens = st.slider(
             "Máximos Tokens (Longitud)", 50, 4096, 512, 64,
             key="max_tokens",
-            help="Nota: Este slider solo aplica para GROQ." # Actualizado el texto de ayuda
+            help="Nota: Este slider solo aplica para GROQ."
         )
 
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
@@ -128,27 +128,29 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
                 elif provider == "Hugging Face":
                     client = InferenceClient(token=HUGGINGFACE_API_KEY)
+                    
+                    # --- CORRECCIÓN: Truncar el texto ---
+                    # Los modelos de HF tienen límites de tokens. 3000 caracteres es un límite seguro.
+                    safe_text_to_analyze = text_to_analyze[:3000]
+                    # --- FIN DE LA CORRECCIÓN ---
 
                     if "Resumir" in task_prompt:
-                        # --- CORRECCIÓN ---
-                        # Eliminado el parámetro 'max_length'
                         response_list = client.summarization(
-                            text=text_to_analyze,
+                            text=safe_text_to_analyze, # Usar el texto truncado
                             model="facebook/bart-large-cnn"
                         )
-                        # --- FIN DE LA CORRECCIÓN ---
                         response_content = response_list[0]['summary_text']
                     
                     elif "Traducir" in task_prompt:
                         response_list = client.translation(
-                            text=text_to_analyze,
+                            text=safe_text_to_analyze, # Usar el texto truncado
                             model="Helsinki-NLP/opus-mt-es-en"
                         )
                         response_content = response_list[0]['translation_text']
 
                     elif "sentimiento" in task_prompt:
                         response_list = client.sentiment_analysis(
-                            text=text_to_analyze,
+                            text=safe_text_to_analyze, # Usar el texto truncado
                             model="cardiffnlp/twitter-xlm-roberta-base-sentiment"
                         )
                         best_sentiment = max(response_list[0], key=lambda x: x['score'])
