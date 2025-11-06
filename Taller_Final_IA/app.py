@@ -34,7 +34,6 @@ uploaded_file = st.file_uploader(
     type=["png", "jpg", "jpeg"]
 )
 
-# Cargar y ejecutar el modelo OCR si se sube un archivo
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Imagen subida", use_column_width=True)
@@ -45,7 +44,6 @@ if uploaded_file is not None:
         reader = load_ocr_model()
         results = reader.readtext(img_bytes)
         extracted_text = " ".join([res[1] for res in results])
-        
         st.session_state['extracted_text'] = extracted_text
         
         st.text_area(
@@ -92,16 +90,11 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             model_selection = "llama-3.1-8b-instant"
             
         else:
-            # --- CAMBIO DE MODELO ---
-            # Cambiamos Mixtral por Mistral-7B-Instruct
-            # Este modelo SÍ soporta 'text_generation'
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "mistralai/Mistral-7B-Instruct-v0.2",
-                key="hf_model",
-                help="Este modelo debe soportar la tarea 'text_generation'."
+                "mistralai/Mistral-7B-Instruct-v0.2", # Este modelo exige la tarea 'conversational'
+                key="hf_model"
             )
-            # --- FIN DEL CAMBIO ---
 
     with col2:
         temperature = st.slider(
@@ -124,41 +117,32 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
 
-    # --- Lógica de la API (con text_generation para HF) ---
+    # --- Lógica de la API ---
     
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
             try:
                 if provider == "GROQ":
                     client = Groq(api_key=GROQ_API_KEY)
-                    
                     messages = [
-                        {
-                            "role": "system",
-                            "content": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}."
-                        },
-                        {
-                            "role": "user",
-                            "content": f"El texto para analizar es:\n\n---\n{text_to_analyze}\n---"
-                        }
+                        { "role": "system", "content": f"Eres un asistente experto. Realiza esta tarea: {task_prompt}." },
+                        { "role": "user", "content": f"El texto para analizar es:\n\n---\n{text_to_analyze}\n---" }
                     ]
-                    
                     chat_completion = client.chat.completions.create(
-                        messages=messages,
-                        model=model_selection,
-                        temperature=temperature,
-                        max_tokens=max_tokens
+                        messages=messages, model=model_selection,
+                        temperature=temperature, max_tokens=max_tokens
                     )
-                    
                     response_content = chat_completion.choices[0].message.content
                     st.markdown("### Respuesta de GROQ")
                     st.markdown(response_content)
 
                 elif provider == "Hugging Face":
-                    # Usamos 'text_generation' (confirmado por el cambio de modelo)
+                    # --- CORRECCIÓN FINAL: Usamos .conversational() ---
+                    # El error de la API nos obliga a usar esta tarea.
+                    # Nos aseguramos que requirements.txt tenga huggingface_hub>=0.20.0
                     client = InferenceClient(token=HUGGINGFACE_API_KEY)
                     
-                    # Formato de prompt para Mistral-7B-Instruct (similar a Mixtral)
+                    # Para la tarea 'conversational', el prompt es solo el texto del usuario
                     hf_prompt = f"""[INST] Eres un asistente experto. El usuario te dará un texto y una tarea.
 Tarea: {task_prompt}
 
@@ -169,16 +153,22 @@ Texto para analizar:
 [/INST]
 """
                     
-                    # Llamada a la API con .text_generation()
-                    response_content = client.text_generation(
-                        model=model_selection, # Usará "mistralai/Mistral-7B-Instruct-v0.2"
-                        prompt=hf_prompt,
-                        max_new_tokens=max_tokens, 
-                        temperature=max(temperature, 0.01)
+                    # Llamada a la API con .conversational()
+                    response_dict = client.conversational(
+                        text=hf_prompt,
+                        model=model_selection,
+                        parameters={
+                            "max_new_tokens": max_tokens,
+                            "temperature": max(temperature, 0.01)
+                        }
                     )
+                    
+                    # La respuesta es un diccionario, extraemos la respuesta generada
+                    response_content = response_dict.get("generated_text", "No se recibió respuesta.")
                     
                     st.markdown("### Respuesta de Hugging Face")
                     st.markdown(response_content)
+                    # --- FIN DE LA CORRECCIÓN ---
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
