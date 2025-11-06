@@ -1,9 +1,9 @@
 import streamlit as st
 from PIL import Image
 import easyocr
-import requests
 from groq import Groq
 from huggingface_hub import InferenceClient
+import requests
 
 # --- CONFIGURACIÓN DE LA PÁGINA Y CLAVES ---
 
@@ -91,7 +91,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         else:
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
-                "mistralai/Mistral-7B-Instruct-v0.2",
+                "mistralai/Mixtral-8x7B-Instruct-v0.1",  # ✅ modelo compatible con hf-inference
                 key="hf_model"
             )
 
@@ -108,7 +108,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         max_tokens = st.slider(
             "Máximos Tokens (Longitud)",
             min_value=50,
-            max_value=4096,
+            max_value=2048,
             value=512,
             step=64,
             key="max_tokens"
@@ -136,41 +136,38 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                     st.markdown("### Respuesta de GROQ")
                     st.markdown(response_content)
 
-
+                # --- HUGGING FACE ---
                 elif provider == "Hugging Face":
-                    api_url = f"https://api-inference.huggingface.co/models/{model_selection}"
-                    headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
-                
+                    api_url = f"https://router.huggingface.co/hf-inference/models/{model_selection}"
+                    headers = {
+                        "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
+                        "Content-Type": "application/json"
+                    }
+
                     hf_payload = {
-                        "inputs": {
-                            "past_user_inputs": [],
-                            "generated_responses": [],
-                            "text": f"""Eres un asistente experto. Realiza la siguiente tarea: {task_prompt}.
-                
-                Texto para analizar:
-                ---
-                {text_to_analyze}
-                ---
-                """
-                        },
+                        "inputs": f"""Eres un asistente experto. Realiza esta tarea: {task_prompt}.
+
+Texto para analizar:
+---
+{text_to_analyze}
+---""",
                         "parameters": {
                             "max_new_tokens": max_tokens,
                             "temperature": max(temperature, 0.01)
                         }
                     }
-                
+
                     response = requests.post(api_url, headers=headers, json=hf_payload)
-                
+
                     if response.status_code == 200:
                         data = response.json()
-                        # El formato de la respuesta puede variar, verificamos lo más probable:
                         if isinstance(data, list):
                             response_text = data[0].get("generated_text", "No se recibió texto.")
                         elif isinstance(data, dict):
                             response_text = data.get("generated_text", "No se recibió texto.")
                         else:
                             response_text = str(data)
-                
+
                         st.markdown("### Respuesta de Hugging Face")
                         st.markdown(response_text)
                     else:
@@ -178,6 +175,3 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
-
-
-
