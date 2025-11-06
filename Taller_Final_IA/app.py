@@ -16,10 +16,10 @@ try:
     GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
     HUGGINGFACE_API_KEY = st.secrets["HUGGINGFACE_API_KEY"]
 except KeyError:
-    st.error("No se encontraron las claves de API en los secretos de Streamlit.")
+    st.error("No se encontraron las claves de API en los secretos de Streamlit. Asegúrate de haberlas configurado.")
     st.stop()
 
-# --- MÓDULO 1: EL LECTOR DE IMÁGENES (OCR) [cite: 58] ---
+# --- MÓDULO 1: EL LECTOR DE IMÁGENES (OCR) ---
 
 # Desafío de Caché: Usamos @st.cache_resource
 # para cargar el modelo OCR solo una vez.
@@ -30,23 +30,23 @@ def load_ocr_model():
     reader = easyocr.Reader(['es', 'en'], gpu=False) 
     return reader
 
-# 1. Crear la Interfaz Básica [cite: 61]
-st.title("Taller IA: Construcción de una Aplicación Multimodal ")
+# 1. Crear la Interfaz Básica
+st.title("Taller IA: Construcción de una Aplicación Multimodal")
 st.header("Módulo 1: Lector de Imágenes (OCR) 📸")
 
-# 2. Implementar la Carga de Archivos [cite: 66]
+# 2. Implementar la Carga de Archivos
 uploaded_file = st.file_uploader(
     "Sube una imagen para extraer el texto",
-    type=["png", "jpg", "jpeg"] # [cite: 68]
+    type=["png", "jpg", "jpeg"] #
 )
 
 # 3. Cargar y Ejecutar el Modelo OCR
 if uploaded_file is not None:
-    # Mostrar la imagen subida [cite: 73]
+    # Mostrar la imagen subida
     image = Image.open(uploaded_file)
     st.image(image, caption="Imagen subida", use_column_width=True)
 
-    # Convertir la imagen para EasyOCR [cite: 74]
+    # Convertir la imagen para EasyOCR
     # Necesitamos pasarla como bytes o como un array de numpy
     img_bytes = uploaded_file.getvalue()
     
@@ -54,8 +54,8 @@ if uploaded_file is not None:
         # Cargar el modelo (lo tomará del caché si ya está cargado)
         reader = load_ocr_model()
         
-        # 4. Procesar y Mostrar Resultados [cite: 72]
-        # Ejecutar el modelo OCR [cite: 75]
+        # 4. Procesar y Mostrar Resultados
+        # Ejecutar el modelo OCR
         results = reader.readtext(img_bytes)
         
         # Juntar todo el texto extraído
@@ -65,7 +65,7 @@ if uploaded_file is not None:
         # Guardar el texto extraído en el st.session_state
         st.session_state['extracted_text'] = extracted_text
         
-        # Mostrar el texto extraído [cite: 76]
+        # Mostrar el texto extraído
         st.text_area(
             "Texto Extraído por OCR:",
             extracted_text,
@@ -73,9 +73,9 @@ if uploaded_file is not None:
             key="ocr_output"
         )
 
-# --- MÓDULOS 2 y 3: CONEXIÓN CON LLMS Y FLEXIBILIDAD [cite: 77, 95] ---
+# --- MÓDULOS 2 y 3: CONEXIÓN CON LLMS Y FLEXIBILIDAD ---
 
-# Solo mostramos esta sección si ya hay texto extraído [cite: 88, 94]
+# Solo mostramos esta sección si ya hay texto extraído
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     
     st.divider()
@@ -89,14 +89,14 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     col1, col2 = st.columns(2)
     
     with col1:
-        # Módulo 3: Elección de Proveedor [cite: 102]
+        # Módulo 3: Elección de Proveedor
         provider = st.radio(
             "Elige el proveedor de LLM:",
             ("GROQ", "Hugging Face"),
             key="provider"
         )
 
-        # Módulo 2: Elección de Tarea [cite: 85]
+        # Módulo 2: Elección de Tarea
         task_prompt = st.selectbox(
             "Elige la tarea a realizar:",
             (
@@ -109,13 +109,23 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             key="task"
         )
         
-        # Módulo 2: Elección de Modelo (solo para GROQ) [cite: 84]
+        # Módulo 2: Elección de Modelo (solo para GROQ)
         if provider == "GROQ":
+            
+            # --- ACTUALIZACIÓN ---
+            # Se actualiza la lista de modelos de Groq
             model_selection = st.selectbox(
                 "Elige el modelo de GROQ:",
-                ("llama3-8b-8192", "mixtral-8x7b-32768", "gemma-7b-it"),
+                (
+                    "llama-3.1-8b-instant", 
+                    "llama-3.1-70b-instant", 
+                    "mixtral-8x7b-32768", 
+                    "gemma-7b-it"
+                ),
                 key="groq_model"
             )
+            # --- FIN DE LA ACTUALIZACIÓN ---
+            
         else:
             # Módulo 3: Modelos de Hugging Face
             model_selection = st.text_input(
@@ -125,9 +135,9 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             )
 
     with col2:
-        # Módulo 3: Control de Parámetros [cite: 98]
+        # Módulo 3: Control de Parámetros
         temperature = st.slider(
-            "Temperatura (Creatividad) [cite: 99]",
+            "Temperatura (Creatividad)",
             min_value=0.0,
             max_value=1.0,
             value=0.7,
@@ -136,7 +146,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         )
         
         max_tokens = st.slider(
-            "Máximos Tokens (Longitud) [cite: 99]",
+            "Máximos Tokens (Longitud)",
             min_value=50,
             max_value=4096,
             value=512,
@@ -144,7 +154,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             key="max_tokens"
         )
 
-    # Módulo 2: Botón de Análisis [cite: 86]
+    # Módulo 2: Botón de Análisis
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
 
     # --- Lógica de la API ---
@@ -152,12 +162,12 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
             try:
-                # Módulo 3: Lógica Condicional [cite: 103]
+                # Módulo 3: Lógica Condicional
                 if provider == "GROQ":
-                    # Módulo 2: Lógica de la API de GROQ [cite: 87]
-                    client = Groq(api_key=GROQ_API_KEY) # [cite: 88]
+                    # Módulo 2: Lógica de la API de GROQ
+                    client = Groq(api_key=GROQ_API_KEY) #
                     
-                    # Estructura correcta del prompt [cite: 90]
+                    # Estructura correcta del prompt
                     messages = [
                         {
                             "role": "system",
@@ -169,7 +179,7 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                         }
                     ]
                     
-                    # Llamada a la API [cite: 89, 100]
+                    # Llamada a la API
                     chat_completion = client.chat.completions.create(
                         messages=messages,
                         model=model_selection,
@@ -177,17 +187,17 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                         max_tokens=max_tokens
                     )
                     
-                    # Mostrar la respuesta [cite: 91]
+                    # Mostrar la respuesta
                     response_content = chat_completion.choices[0].message.content
                     st.markdown("### Respuesta de GROQ")
                     st.markdown(response_content)
 
                 elif provider == "Hugging Face":
-                    # Módulo 3: Lógica de la API de Hugging Face [cite: 104]
-                    client = InferenceClient(token=HUGGINGFACE_API_KEY) # [cite: 106]
+                    # Módulo 3: Lógica de la API de Hugging Face
+                    client = InferenceClient(token=HUGGINGFACE_API_KEY) #
                     
                     # Estructura del prompt para un modelo instruct
-                    # (Usamos text_generation que es más flexible [cite: 107])
+                    # (Usamos text_generation que es más flexible)
                     prompt = f"""<s>[INST] Eres un asistente experto. El usuario te dará un texto y una tarea.
 Tarea: {task_prompt}
 Texto:
@@ -195,7 +205,7 @@ Texto:
 [/INST]
 Respuesta:"""
                     
-                    # Llamada a la API [cite: 107]
+                    # Llamada a la API
                     response = client.text_generation(
                         model=model_selection,
                         prompt=prompt,
@@ -203,7 +213,7 @@ Respuesta:"""
                         temperature=max(temperature, 0.01) # Temp 0 no es válida en HF, usamos 0.01
                     )
                     
-                    # Mostrar la respuesta [cite: 110]
+                    # Mostrar la respuesta
                     st.markdown("### Respuesta de Hugging Face")
                     st.markdown(response)
 
