@@ -175,7 +175,7 @@ if st.session_state.ocr_text:
                             {"role": "system", "content": system_prompt},
                             {"role": "user", "content": user_prompt}
                         ],
-                        model="mixtral-8x7b-32768", 
+                        model="llama-3.1-8b-instant", 
                         temperature=temperature,
                         max_tokens=max_tokens
                     )
@@ -229,4 +229,5 @@ if st.session_state.ocr_text:
 
 else:
     st.warning("Por favor, sube una imagen para activar el análisis con LLM.")
+
 
