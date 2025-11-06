@@ -23,6 +23,7 @@ except KeyError:
 @st.cache_resource
 def load_ocr_model():
     """Carga el modelo EasyOCR en memoria (cacheado)."""
+    # Usamos 'es' (español) e 'en' (inglés)
     reader = easyocr.Reader(['es', 'en'], gpu=False) 
     return reader
 
@@ -34,18 +35,25 @@ uploaded_file = st.file_uploader(
     type=["png", "jpg", "jpeg"]
 )
 
+# Cargar y ejecutar el modelo OCR si se sube un archivo
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Imagen subida", use_column_width=True)
     
+    # Convertir la imagen a bytes para EasyOCR
     img_bytes = uploaded_file.getvalue()
     
     with st.spinner("Procesando imagen con OCR..."):
         reader = load_ocr_model()
+        # Ejecutar OCR
         results = reader.readtext(img_bytes)
+        # Juntar el texto detectado
         extracted_text = " ".join([res[1] for res in results])
+        
+        # Guardar en el estado de la sesión (Desafío de Persistencia)
         st.session_state['extracted_text'] = extracted_text
         
+        # Mostrar el texto extraído
         st.text_area(
             "Texto Extraído por OCR:",
             extracted_text,
@@ -55,6 +63,7 @@ if uploaded_file is not None:
 
 # --- MÓDULOS 2 y 3: CONEXIÓN CON LLMS Y FLEXIBILIDAD ---
 
+# Solo mostrar esta sección si hay texto en el estado de la sesión
 if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     
     st.divider()
@@ -67,12 +76,14 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
     col1, col2 = st.columns(2)
     
     with col1:
+        # Módulo 3: Elección de Proveedor
         provider = st.radio(
             "Elige el proveedor de LLM:",
             ("GROQ", "Hugging Face"),
             key="provider"
         )
 
+        # Módulo 2: Elección de Tarea
         task_prompt = st.selectbox(
             "Elige la tarea a realizar:",
             (
@@ -86,22 +97,23 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
         )
         
         if provider == "GROQ":
-            # --- CAMBIO 1: Eliminamos el selectbox de modelos ---
-            # Dejamos un texto informativo
+            # --- CORRECCIÓN 1: Se elimina el selectbox de GROQ ---
             st.info("Usando el modelo: `llama-3.1-8b-instant`")
-            # Asignamos el modelo directamente
+            # Se asigna el modelo directamente
             model_selection = "llama-3.1-8b-instant"
-            # --- FIN DEL CAMBIO 1 ---
+            # --- FIN DE LA CORRECCIÓN 1 ---
             
         else:
+            # Módulo 3: Modelo de Hugging Face
             model_selection = st.text_input(
                 "Modelo de Hugging Face:",
                 "mistralai/Mixtral-8x7B-Instruct-v0.1",
                 key="hf_model",
-                help="Asegúrate que el modelo soporte la tarea 'conversational'."
+                help="Asegúrate que el modelo soporte la tarea 'chat_completion'."
             )
 
     with col2:
+        # Módulo 3: Control de Parámetros
         temperature = st.slider(
             "Temperatura (Creatividad)",
             min_value=0.0,
@@ -120,26 +132,29 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
             key="max_tokens"
         )
 
+    # Módulo 2: Botón de Análisis
     analyze_button = st.button("Analizar Texto con LLM", type="primary")
 
     # --- Lógica de la API ---
     
     if analyze_button:
         with st.spinner(f"Analizando texto con {provider}... Por favor espera."):
+            
+            # Definir los mensajes (común para ambos proveedores)
+            messages = [
+                {
+                    "role": "system",
+                    "content": f"Eres un asistente experto. El usuario te dará un texto y una tarea. Debes realizar la tarea solicitada sobre el texto. La tarea es: {task_prompt}."
+                },
+                {
+                    "role": "user",
+                    "content": f"El texto para analizar es el siguiente:\n\n---\n{text_to_analyze}\n---"
+                }
+            ]
+            
             try:
                 if provider == "GROQ":
                     client = Groq(api_key=GROQ_API_KEY)
-                    
-                    messages = [
-                        {
-                            "role": "system",
-                            "content": f"Eres un asistente experto. El usuario te dará un texto y una tarea. Debes realizar la tarea solicitada sobre el texto. La tarea es: {task_prompt}."
-                        },
-                        {
-                            "role": "user",
-                            "content": f"El texto para analizar es el siguiente:\n\n---\n{text_to_analyze}\n---"
-                        }
-                    ]
                     
                     chat_completion = client.chat.completions.create(
                         messages=messages,
@@ -153,37 +168,24 @@ if 'extracted_text' in st.session_state and st.session_state['extracted_text']:
                     st.markdown(response_content)
 
                 elif provider == "Hugging Face":
-                    # --- CAMBIO 2: Usamos la tarea 'conversational' ---
+                    # --- CORRECCIÓN 2: Usamos client.chat_completion ---
                     client = InferenceClient(token=HUGGINGFACE_API_KEY)
                     
-                    # Creamos el prompt como un solo mensaje de usuario
-                    hf_prompt = f"""Realiza la siguiente tarea: {task_prompt}.
-                    
-                    Aquí está el texto que debes analizar:
-                    ---
-                    {text_to_analyze}
-                    ---
-                    Respuesta:"""
-                    
-                    # Usamos client.conversational() en lugar de client.text_generation()
-                    response_dict = client.conversational(
-                        text=hf_prompt,
+                    response = client.chat_completion(
+                        messages=messages,
                         model=model_selection,
-                        # Pasamos los parámetros de esta forma para la tarea conversacional
-                        parameters={
-                            "max_new_tokens": max_tokens,
-                            # Aseguramos que la temperatura no sea 0.0
-                            "temperature": max(temperature, 0.01) 
-                        }
+                        # HF usa 'max_new_tokens' en algunos endpoints, 
+                        # pero 'chat_completion' usa 'max_tokens'
+                        max_tokens=max_tokens, 
+                        temperature=max(temperature, 0.01) # Temp 0.0 puede fallar
                     )
                     
-                    # La respuesta de .conversational() es un diccionario.
-                    # El texto generado está en la clave 'generated_text'.
-                    response_content = response_dict.get("generated_text", "No se recibió una respuesta válida del modelo.")
+                    # La respuesta tiene la misma estructura que la de Groq
+                    response_content = response.choices[0].message.content
                     
                     st.markdown("### Respuesta de Hugging Face")
                     st.markdown(response_content)
-                    # --- FIN DEL CAMBIO 2 ---
+                    # --- FIN DE LA CORRECCIÓN 2 ---
 
             except Exception as e:
                 st.error(f"Error al contactar la API de {provider}: {e}")
